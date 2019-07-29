@@ -1,0 +1,5 @@
+Creditcoin\Sawtooth\SDK\lib\Debug\sawtooth.lib is made from Sawtooth SDK CXX with the following modification:
+
+In src/message_stream.cpp on line 61
+
+message.add(msg_data.data(), msg_data.length()); => message.add(msg_data.data());
