@@ -27,7 +27,7 @@ services:
     entrypoint: settings-tp -vv -C tcp://validator:4004
 
   validator:
-    image: gluwa/creditcoin-validator-debug:latest
+    image: gluwa/creditcoin-validator:latest
     container_name: sawtooth-validator-default
     volumes:
       - type: volume
@@ -79,7 +79,7 @@ services:
     entrypoint: sawtooth-rest-api -C tcp://validator:4004 --bind rest-api:8008
 
   processor:
-    image: gluwa/creditcoin-processor-debug:latest
+    image: gluwa/creditcoin-processor:latest
     container_name: creditcoin-processor
     depends_on:
       - validator
