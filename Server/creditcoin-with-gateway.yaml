@@ -24,7 +24,7 @@ services:
     container_name: sawtooth-settings-tp-default
     depends_on:
       - validator
-    entrypoint: settings-tp -vv -C tcp://validator:4004
+    entrypoint: settings-tp -C tcp://validator:4004
 
   validator:
     image: gluwa/creditcoin-validator:latest
@@ -46,7 +46,7 @@ services:
         bash -c 'if [[ ! -f /etc/sawtooth/keys/validator.pub ]]
             then 
                 echo "First run"
-                sawadm keygen && sawtooth-validator -vv \
+                sawadm keygen && sawtooth-validator \
                     --endpoint tcp://[insert.your.ip]:8800 \
                     --bind component:tcp://eth0:4004 \
                     --bind network:tcp://eth0:8800 \
@@ -57,7 +57,7 @@ services:
                     --minimum-peer-connectivity 2
             else 
                 echo "Second run"
-                sawtooth-validator -vv \
+                sawtooth-validator \
                     --endpoint tcp://[insert.your.ip]:8800 \
                     --bind component:tcp://eth0:4004 \
                     --bind network:tcp://eth0:8800 \
