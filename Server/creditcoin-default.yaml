@@ -24,7 +24,7 @@ services:
     container_name: sawtooth-settings-tp-default
     depends_on:
       - validator
-    entrypoint: settings-tp -vv -C tcp://validator:4004
+    entrypoint: settings-tp -C tcp://validator:4004
 
   validator:
     image: gluwa/creditcoin-validator:latest
