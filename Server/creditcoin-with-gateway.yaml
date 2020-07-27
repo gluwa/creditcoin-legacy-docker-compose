@@ -25,6 +25,12 @@ services:
     depends_on:
       - validator
     entrypoint: settings-tp -C tcp://validator:4004
+    stop_signal: SIGKILL
+    logging:
+        driver: "json-file"
+        options:
+            max-file: "5"
+            max-size: "10m"
 
   validator:
     image: gluwa/creditcoin-validator:latest
@@ -40,43 +46,43 @@ services:
       - 4004
       - 8800
     ports:
-      - "4004:4004"
-      - "8800:8800"
+      - 4004:4004
+      - 8800:8800
     entrypoint: |
         bash -c 'if [[ ! -f /etc/sawtooth/keys/validator.pub ]]
             then 
                 echo "First run"
-                sawadm keygen && sawtooth-validator \
-                    --endpoint tcp://[insert.your.ip]:8800 \
-                    --bind component:tcp://eth0:4004 \
-                    --bind network:tcp://eth0:8800 \
-                    --peering dynamic \
-                    --seeds tcp://creditcoin-node.gluwa.com:8800 \
-                    --seeds tcp://creditcoin-gateway.gluwa.com:8800 \
-                    --scheduler parallel \
-                    --minimum-peer-connectivity 2
-            else 
-                echo "Second run"
-                sawtooth-validator \
-                    --endpoint tcp://[insert.your.ip]:8800 \
-                    --bind component:tcp://eth0:4004 \
-                    --bind network:tcp://eth0:8800 \
-                    --peering dynamic \
-                    --seeds tcp://creditcoin-node.gluwa.com:8800 \
-                    --seeds tcp://creditcoin-gateway.gluwa.com:8800 \
-                    --scheduler parallel \
-                    --minimum-peer-connectivity 2
+                sawadm keygen
             fi
-            EOF'
+            sawtooth-validator \
+                --endpoint tcp://[insert.your.ip]:8800 \
+                --bind component:tcp://eth0:4004 \
+                --bind network:tcp://eth0:8800 \
+                --peering dynamic \
+                --seeds tcp://creditcoin-node.gluwa.com:8800 \
+                --seeds tcp://creditcoin-gateway.gluwa.com:8800 \
+                --scheduler parallel'
+    stop_signal: SIGKILL
+    logging:
+        driver: "json-file"
+        options:
+            max-file: "5"
+            max-size: "100m"
 
   rest-api:
     image: hyperledger/sawtooth-rest-api:1.0
     container_name: sawtooth-rest-api-default
     ports:
-      - "8008:8008"
+      - 8008:8008
     depends_on:
       - validator
     entrypoint: sawtooth-rest-api -C tcp://validator:4004 --bind rest-api:8008
+    stop_signal: SIGKILL
+    logging:
+        driver: "json-file"
+        options:
+            max-file: "5"
+            max-size: "10m"
 
   processor:
     image: gluwa/creditcoin-processor:latest
@@ -93,8 +99,13 @@ services:
                 sleep 2
                 rest_status=$$(curl -s --head -w %{http_code} http://rest-api:8008/state?address=000000 -o /dev/null)
             done
-            ./ccprocessorLinux.out tcp://validator:4004 tcp://gateway:55555 http://rest-api:8008
-        EOF'
+            ./ccprocessorLinux.out tcp://validator:4004 tcp://gateway:55555 http://rest-api:8008'
+    stop_signal: SIGKILL
+    logging:
+        driver: "json-file"
+        options:
+            max-file: "5"
+            max-size: "10m"
 
   gateway:
     image: gluwa/creditcoin-gateway:latest
@@ -102,12 +113,18 @@ services:
     expose:
       - 55555
     ports:
-      - "55555:55555"
+      - 55555:55555
     secrets:
      - source: gateway_config
        target: /home/Creditcoin/Gateway/appsettings.json
     entrypoint: ./ccgateway
-    
+    stop_signal: SIGKILL
+    logging:
+        driver: "json-file"
+        options:
+            max-file: "5"
+            max-size: "10m"
+
 secrets:
   gateway_config:
     file: ./gatewayConfig.json
