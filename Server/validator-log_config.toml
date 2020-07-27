@@ -17,50 +17,50 @@
 version = 1
 disable_existing_loggers = false
 
-[formatters.simple]
-format = "[%(asctime)s.%(msecs)03d [%(threadName)s] %(module)s %(levelname)s] %(message)s"
-datefmt = "%H:%M:%S"
+# [formatters.simple]
+# format = "[%(asctime)s.%(msecs)03d [%(threadName)s] %(module)s %(levelname)s] %(message)s"
+# datefmt = "%H:%M:%S"
 
-[handlers.debug]
-level = "DEBUG"
-formatter = "simple"
-class = "logging.handlers.RotatingFileHandler"
-filename = "/var/log/sawtooth/validator-debug.log"
-maxBytes = 100000000
-backupCount=10
+# [handlers.debug]
+# level = "DEBUG"
+# formatter = "simple"
+# class = "logging.handlers.RotatingFileHandler"
+# filename = "/var/log/sawtooth/validator-debug.log"
+# maxBytes = 100000000
+# backupCount=10
 
-[handlers.info]
-level = "INFO"
-formatter = "simple"
-class = "logging.handlers.RotatingFileHandler"
-filename = "/var/log/sawtooth/validator-info.log"
-maxBytes = 100000000
-backupCount=10
+# [handlers.info]
+# level = "INFO"
+# formatter = "simple"
+# class = "logging.handlers.RotatingFileHandler"
+# filename = "/var/log/sawtooth/validator-info.log"
+# maxBytes = 100000000
+# backupCount=10
 
-[handlers.warning]
-level = "WARNING"
-formatter = "simple"
-class = "logging.handlers.RotatingFileHandler"
-filename = "/var/log/sawtooth/validator-warning.log"
-maxBytes = 200000000
-backupCount=5
+# [handlers.warning]
+# level = "WARNING"
+# formatter = "simple"
+# class = "logging.handlers.RotatingFileHandler"
+# filename = "/var/log/sawtooth/validator-warning.log"
+# maxBytes = 200000000
+# backupCount=5
 
-[handlers.error]
-level = "ERROR"
-formatter = "simple"
-class = "logging.handlers.RotatingFileHandler"
-filename = "/var/log/sawtooth/validator-error.log"
-maxBytes = 200000000
-backupCount=5
+# [handlers.error]
+# level = "ERROR"
+# formatter = "simple"
+# class = "logging.handlers.RotatingFileHandler"
+# filename = "/var/log/sawtooth/validator-error.log"
+# maxBytes = 200000000
+# backupCount=5
 
-[handlers.critical]
-level = "CRITICAL"
-formatter = "simple"
-class = "logging.handlers.RotatingFileHandler"
-filename = "/var/log/sawtooth/validator-critical.log"
-maxBytes = 200000000
-backupCount=5
+# [handlers.critical]
+# level = "CRITICAL"
+# formatter = "simple"
+# class = "logging.handlers.RotatingFileHandler"
+# filename = "/var/log/sawtooth/validator-critical.log"
+# maxBytes = 200000000
+# backupCount=5
 
 [root]
-level = "DEBUG"
-handlers = [ "debug", "info", "warning", "error", "critical"]
+# level = "DEBUG"
+# handlers = [ "debug", "info", "warning", "error", "critical"]
