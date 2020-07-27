@@ -48,6 +48,9 @@ services:
     ports:
       - 4004:4004
       - 8800:8800
+    secrets:
+     - source: validator_logging
+       target: /etc/sawtooth/log_config.toml
     entrypoint: |
         bash -c 'if [[ ! -f /etc/sawtooth/keys/validator.pub ]]
             then 
@@ -74,6 +77,9 @@ services:
     container_name: sawtooth-rest-api-default
     ports:
       - 8008:8008
+    secrets:
+     - source: rest_api_logging
+       target: /etc/sawtooth/log_config.toml
     depends_on:
       - validator
     entrypoint: sawtooth-rest-api -C tcp://validator:4004 --bind rest-api:8008
@@ -128,7 +134,11 @@ services:
 secrets:
   gateway_config:
     file: ./gatewayConfig.json
-    
+  rest_api_logging:
+    file: ./rest_api-log_config.toml
+  validator_logging:
+    file: ./validator-log_config.toml
+
 volumes:
   validator-block-volume:
   validator-key-volume:
