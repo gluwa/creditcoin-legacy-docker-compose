@@ -64,6 +64,7 @@ services:
                 --peering dynamic \
                 --seeds tcp://creditcoin-node.gluwa.com:8800 \
                 --seeds tcp://creditcoin-gateway.gluwa.com:8800 \
+                --maximum-peer-connectivity 5 \
                 --scheduler parallel'
     stop_signal: SIGKILL
     logging:
