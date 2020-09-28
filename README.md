@@ -1,4 +1,4 @@
-# CreditcoinDocs-Mainnet
+# CreditcoinDockerCompose-Mainnet
 Everything you need to get started connecting to the Creditcoin Mainnet environment
 
 Please see the following pages for Creditcoin mainnet documentation:
