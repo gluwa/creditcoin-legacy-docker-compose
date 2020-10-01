@@ -6,7 +6,7 @@
 }
 
 
-timestamp() {
+function timestamp {
   local ts=`date +"%Y-%m-%d %H:%M:%S"`
   echo -n $ts
 }
@@ -21,14 +21,14 @@ function check_if_stagnant_state {
   local block_tip=$(get_block_tip)
   [ -z $block_tip ]  &&  return 1
 
-  previous_block_tip=`cat $CREDITCOIN_HOME/.last_block_tip.txt 2>/dev/null`  &&  {
+  previous_block_tip=`cat $CREDITCOIN_HOME/.last_block_tip 2>/dev/null`  &&  {
     [ $block_tip = $previous_block_tip ]  &&  {
-      rm $CREDITCOIN_HOME/.last_block_tip.txt
+      rm $CREDITCOIN_HOME/.last_block_tip
       return 1    # Validator is stagnant since block tip hasn't changed since last run
     }
   }
 
-  echo $block_tip > $CREDITCOIN_HOME/.last_block_tip.txt
+  echo $block_tip > $CREDITCOIN_HOME/.last_block_tip
 
   return 0
 }

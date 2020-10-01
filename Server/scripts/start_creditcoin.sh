@@ -16,14 +16,8 @@
 }
 
 
-function define_fields_in_gateway_config {
-  GATEWAY_CONFIG=gatewayConfig.json
-  return 0
-}
-
-
 function restart_creditcoin_node {
-  docker_compose=`ls -t *.yaml | head -1`
+  local docker_compose=`ls -t *.yaml | head -1`
   [ -z $docker_compose ]  &&  return 1
 
   public_ipv4_address=`curl https://ifconfig.me 2>/dev/null`
@@ -78,8 +72,6 @@ run_sha256_speed_test  ||  exit 1
 [ -z $CREDITCOIN_HOME ]  &&  CREDITCOIN_HOME=~/Server
 cd $CREDITCOIN_HOME  ||  exit 1
 echo CREDITCOIN_HOME is $CREDITCOIN_HOME
-
-define_fields_in_gateway_config  ||  exit 1
 
 restart_creditcoin_node  ||  exit 1
 
