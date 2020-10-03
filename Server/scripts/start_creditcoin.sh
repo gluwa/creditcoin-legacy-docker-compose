@@ -53,26 +53,27 @@ function restart_creditcoin_node {
 
 
 function run_sha256_speed_test {
-  echo Checking processing specification of this machine
-  BASELINE=7565854    # measured on Xeon Platinum 8171M CPU @ 2.60GHz
-  openssl speed sha256 2>sha256_speed.txt >/dev/null
-  throughput=`grep "64 size" sha256_speed.txt | cut -d: -f2 |  awk '{print $1}'`
-  rm sha256_speed.txt
-  if (( throughput < BASELINE ))
-  then
-    echo This machine lacks sufficient power to run Creditcoin software.
-    return 1
-  fi
+  local SHA256_SPEED=sha256_speed.txt
+  [ -f $SHA256_SPEED ]  ||  {
+    echo Checking processing specification of this machine
+    local BASELINE=7565854    # measured on Xeon Platinum 8171M CPU @ 2.60GHz
+    openssl speed sha256 2>$SHA256_SPEED >/dev/null
+    local throughput=`grep "64 size" $SHA256_SPEED | cut -d: -f2 |  awk '{print $1}'`
+    if (( throughput < BASELINE ))
+    then
+      echo This machine lacks sufficient power to run Creditcoin software.
+      return 1
+    fi
+  }
   return 0
 }
 
-
-run_sha256_speed_test  ||  exit 1
 
 [ -z $CREDITCOIN_HOME ]  &&  CREDITCOIN_HOME=~/Server
 cd $CREDITCOIN_HOME  ||  exit 1
 echo CREDITCOIN_HOME is $CREDITCOIN_HOME
 
+run_sha256_speed_test  ||  exit 1
 restart_creditcoin_node  ||  exit 1
 
 exit 0
