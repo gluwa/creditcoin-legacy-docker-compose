@@ -52,12 +52,14 @@ function log_number_of_open_descriptors {
 
 # log public IP address daily to confirm it's static
 function log_public_ip_address {
-  [ `date +%H` == "00" ]  &&  [ `date +%M` == "00" ]  &&  {
+  # crontab job is scheduled to run twice an hour; use first one
+  (( $(date +%H) == 3 ))  &&  (( $(date +%M) < 30 ))  &&  {
     local public_ipv4_address=`curl https://ifconfig.me 2>/dev/null`
-    [ -n $public_ipv4_address ]  &&  {
-      echo Public IP address: $public_ipv4_address
+    timestamp
+    [ -n "$public_ipv4_address" ]  &&  {
+      echo " Public IP address is $public_ipv4_address"
     } || {
-      echo Unable to query public IP address.
+      echo " Unable to query public IP address."
       return 1
     }
   }
