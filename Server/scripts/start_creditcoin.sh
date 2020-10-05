@@ -16,10 +16,23 @@
 }
 
 
+function check_if_different_ipv4_subnet {
+  local candidate=$1
+  local seed=$2
+
+  read c_octet1 c_octet2 c_octet3 c_octet4 <<<"${candidate//./ }"
+  read s_octet1 s_octet2 s_octet3 s_octet4 <<<"${seed//./ }"
+  [ $c_octet1 = $s_octet1 ]  &&  [ $c_octet2 = $s_octet2 ]  &&  return 1
+
+  return 0
+}
+
+
 function evaluate_candidates_for_dynamic_peering {
   [ -f $CREDITCOIN_HOME/check_node_sanity.log ]  ||  return 1
 
-  local -n seed=$1
+  local -n seeds_array_reference=$1
+  local seeds_array_length=${#seeds_array_reference[@]}
   local unique_open_peers_by_frequency=`grep open $CREDITCOIN_HOME/check_node_sanity.log | awk '{print $4}' | sort | uniq -c | sort -nr | awk '{print $2}' | tr '\r\n' ' '`
   local s=0
 
@@ -28,16 +41,23 @@ function evaluate_candidates_for_dynamic_peering {
     host=`echo $open_peer | cut -d: -f1`
     port=`echo $open_peer | awk -F: '{print $2}'`
 
-    ((s == 1))  &&  {
-      # don't select both seeds from same subnet
-      read octet1 octet2 octet3 octet4 <<<"${host//./ }"
-      read s0_octet1 s0_octet2 s0_octet3 s0_octet4 <<<"${seed[0]//./ }"
-      [ $octet1 = $s0_octet1 ]  &&  [ $octet2 = $s0_octet2 ]  &&  continue
+    different_subnet=true
+    ((s > 0))  &&  {
+      # select candidates from different subnets
+      for seed in "${seeds_array_reference[@]}"
+      do
+        [ -n "$seed" ]  &&  {
+          check_if_different_ipv4_subnet $host $seed  ||  {
+            different_subnet=false
+            break
+          }
+        }
+      done
     }
 
-    nc -z -w 1 $host $port  &&  {
-      seed[$s]=$open_peer
-      ((++s == 2))  &&  break
+    [ $different_subnet = true ]  &&  nc -z -w 1 $host $port  &&  {
+      seeds_array_reference[$s]=$open_peer
+      ((++s == $seeds_array_length))  &&  break
     }
   done
 
@@ -66,7 +86,7 @@ function restart_creditcoin_node {
 
   if grep -q "peering dynamic" $docker_compose
   then
-    local seeds=([0]="" [1]="")
+    local seeds=([0]="" [1]="" [2]="")
     evaluate_candidates_for_dynamic_peering seeds  &&  sed -i '/seeds tcp:.*\\/d' $docker_compose    # remove existing seeds
 
     # insert new seeds into .yaml file
