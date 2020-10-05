@@ -5,6 +5,7 @@ cd $CREDITCOIN_HOME  ||  exit 1
 
 
 function remove_job_that_runs_sanity_script {
+  sudo rm /etc/logrotate.d/creditcoin_node_logs 2>/dev/null
   crontab -l | grep -v CREDITCOIN_HOME | crontab -
   return $?
 }
@@ -12,15 +13,17 @@ function remove_job_that_runs_sanity_script {
 
 function schedule_job_to_run_sanity_script {
   # allow sudo execution in crontab without tty
+  local rc=0
+
   cc_user=`whoami`
   sudo grep -q "$cc_user ALL" /etc/sudoers  ||  {
     echo "$cc_user ALL=(ALL) NOPASSWD:SETENV: /usr/bin/docker-compose, /bin/sh" | sudo EDITOR='tee -a' visudo >/dev/null
   }
 
 
-  # schedule job to periodically run sanity script by appending to current schedule
-
   crontab -l | grep -q CREDITCOIN_HOME  ||  {
+    # schedule job to periodically run sanity script by appending to current schedule
+
     echo CREDITCOIN_HOME is $CREDITCOIN_HOME
     minutes_after_hour1=$((`date +%s` % 30))
     minutes_after_hour2=$(($minutes_after_hour1 + 30))
@@ -28,7 +31,38 @@ function schedule_job_to_run_sanity_script {
     (crontab -l 2>/dev/null;
      echo CREDITCOIN_HOME=$CREDITCOIN_HOME;
      echo "$minutes_after_hour1,$minutes_after_hour2 * * * * \$CREDITCOIN_HOME/check_node_sanity.sh >> \$CREDITCOIN_HOME/check_node_sanity.log 2>>\$CREDITCOIN_HOME/check_node_sanity-error.log") | crontab -
+
+    rc=$?
+    schedule_rotation_of_node_sanity_logs
   }
+
+  return $rc
+}
+
+
+function schedule_rotation_of_node_sanity_logs {
+  sudo cc_user=`whoami` CREDITCOIN_HOME=$CREDITCOIN_HOME sh -c 'cat > /etc/logrotate.d/creditcoin_node_logs << EOF
+$CREDITCOIN_HOME/check_node_sanity.log {
+       su $cc_user $cc_user
+       daily
+       rotate 30
+       delaycompress
+       compress
+       notifempty
+       missingok
+       create 644 $cc_user $cc_user
+}
+$CREDITCOIN_HOME/check_node_sanity-error.log {
+       su $cc_user $cc_user
+       daily
+       rotate 30
+       delaycompress
+       compress
+       notifempty
+       missingok
+       create 644 $cc_user $cc_user
+}
+EOF'
 
   return 0
 }
