@@ -122,18 +122,28 @@ function restart_creditcoin_node {
 
 
 function run_sha256_speed_test {
-  local SHA256_SPEED=sha256_speed.txt
-  [ -f $SHA256_SPEED ]  ||  {
+  local days_since_epoch=`expr $(date +%s) / 86400`
+  local run_test=false
+  local sha256_speed_file=`ls -t sha256_speed.* 2>/dev/null | head -1`
+
+  [ -z "$sha256_speed_file" ]  &&  run_test=true  ||  {
+    local last_speed_test="${sha256_speed_file##*.}"    # file extension is days since epoch
+    (($days_since_epoch - $last_speed_test >= 30))  &&  run_test=true  ||  run_test=false
+  }
+
+  [ $run_test = true ]  &&  {
     echo Checking processing specification of this machine
     local BASELINE=7565854    # measured on Xeon Platinum 8171M CPU @ 2.60GHz
-    openssl speed sha256 2>$SHA256_SPEED >/dev/null
-    local throughput=`grep "64 size" $SHA256_SPEED | cut -d: -f2 |  awk '{print $1}'`
+    sha256_speed_file=sha256_speed.$days_since_epoch
+    openssl speed sha256 2>$sha256_speed_file >/dev/null
+    local throughput=`grep "64 size" $sha256_speed_file | cut -d: -f2 |  awk '{print $1}'`
     if (( throughput < BASELINE ))
     then
       echo This machine lacks sufficient power to run Creditcoin software.
       return 1
     fi
   }
+
   return 0
 }
 
