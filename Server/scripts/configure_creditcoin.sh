@@ -12,9 +12,9 @@ function remove_job_that_runs_sanity_script {
 
 
 function schedule_job_to_run_sanity_script {
-  # allow sudo execution in crontab without tty
   local rc=0
 
+  # allow sudo execution in crontab without tty
   cc_user=`whoami`
   sudo grep -q "$cc_user ALL" /etc/sudoers  ||  {
     echo "$cc_user ALL=(ALL) NOPASSWD:SETENV: /usr/bin/docker-compose, /bin/sh" | sudo EDITOR='tee -a' visudo >/dev/null
@@ -97,15 +97,39 @@ function validate_rpc_url {
 function define_fields_in_gateway_config {
   local GATEWAY_CONFIG=gatewayConfig.json
   echo "Enter RPC mainnet nodes (eg. https://mainnet.infura.io/v3/...  or  http://localhost:8545)."
+
+  # remove any existing RPC URLs
+  cp -p $GATEWAY_CONFIG "$GATEWAY_CONFIG"_orig
+  sed -i '/"rpc"/d' $GATEWAY_CONFIG
+
   read -p "Bitcoin RPC: " bitcoin_rpc
   validate_rpc_url $bitcoin_rpc  &&  {
-    sed -i "s~<bitcoin_rpc_node_url>~$bitcoin_rpc~g" $GATEWAY_CONFIG    # delimiter is ~ since RPC URL contains /
-  }  ||  return 1
+    sed -i "s~<bitcoin_rpc_node_url>~$bitcoin_rpc~w btc_change.txt" $GATEWAY_CONFIG    # delimiter is ~ since RPC URL contains /
+    [ -s btc_change.txt ]  ||  {
+      # original <bitcoin_..._url> not found; insert new value
+      sed -i 's~"bitcoin"[[:blank:]]*:[[:blank:]]*{~&\n        "rpc": "'$bitcoin_rpc'",~' $GATEWAY_CONFIG
+    }
+    rm btc_change.txt 2>/dev/null
+  }  ||  {
+    mv "$GATEWAY_CONFIG"_orig $GATEWAY_CONFIG
+    return 1
+  }
 
   read -p "Ethereum RPC: " ethereum_rpc
   validate_rpc_url $ethereum_rpc  &&  {
-    sed -i "s~<ethereum_node_url>~$ethereum_rpc~g" $GATEWAY_CONFIG
-  }  ||  return 1
+    sed -i "s~<ethereum_node_url>~$ethereum_rpc~w eth_change.txt" $GATEWAY_CONFIG
+    [ -s eth_change.txt ]  ||  {
+      sed -i 's~"ethereum"[[:blank:]]*:[[:blank:]]*{~&\n        "rpc": "'$ethereum_rpc'",~' $GATEWAY_CONFIG
+      sed -i 's~"ethless"[[:blank:]]*:[[:blank:]]*{~&\n        "rpc": "'$ethereum_rpc'",~' $GATEWAY_CONFIG
+      sed -i 's~"erc20"[[:blank:]]*:[[:blank:]]*{~&\n        "rpc": "'$ethereum_rpc'",~' $GATEWAY_CONFIG
+    }
+    rm eth_change.txt 2>/dev/null
+  }  ||  {
+    mv "$GATEWAY_CONFIG"_orig $GATEWAY_CONFIG
+    return 1
+  }
+
+  rm "$GATEWAY_CONFIG"_orig 2>/dev/null
 
   return 0
 }
