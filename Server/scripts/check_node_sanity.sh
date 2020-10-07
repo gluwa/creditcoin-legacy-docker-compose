@@ -53,7 +53,7 @@ function log_number_of_open_descriptors {
 # log public IP address daily to confirm it's static
 function log_public_ip_address {
   # crontab job is scheduled to run twice an hour; use first one
-  (( $(date +%H) == 3 ))  &&  (( $(date +%M) < 30 ))  &&  {
+  (( 10#$(date +%H) == 3 ))  &&  (( $(date +%M) < 30 ))  &&  {
     local public_ipv4_address=`curl https://ifconfig.me 2>/dev/null`
     timestamp
     [ -n "$public_ipv4_address" ]  &&  {
@@ -95,8 +95,7 @@ function probe_endpoints_of_validator_peers {
 }
 
 
-max_peers=`ps -ef | grep -oP '(?<=maximum-peer-connectivity )[0-9]+' | head -1`
-[ -z $max_peers ]  &&  {
+ps -ef | grep -q "[u]sr/bin/sawtooth-validator"  ||  {
   timestamp
   echo " Validator is not running"
   exit 1
