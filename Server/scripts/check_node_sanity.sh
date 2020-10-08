@@ -78,7 +78,7 @@ function probe_endpoints_of_validator_peers {
     local port=`echo $p | cut -d: -f2`
     local preamble=" Peer $ipv4_address:$port is"
 
-    if nc -4 -z -w 1 $ipv4_address $port
+    if nc -4 -z -w 2 $ipv4_address $port
     then
       timestamp
       echo "$preamble open"

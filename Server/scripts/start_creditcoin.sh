@@ -5,11 +5,6 @@
   exit 1
 }
 
-[ -x "$(command -v openssl)" ]  ||  {
-  echo 'OpenSSL' not found.
-  exit 1
-}
-
 [ -x "$(command -v docker-compose)" ]  ||  {
   echo 'docker-compose' not found.
   exit 1
@@ -33,7 +28,7 @@ function evaluate_candidates_for_dynamic_peering {
 
   local -n seeds_array_reference=$1
   local seeds_array_length=${#seeds_array_reference[@]}
-  local unique_open_peers_by_frequency=`grep open $CREDITCOIN_HOME/check_node_sanity.log | awk '{print $4}' | sort | uniq -c | sort -nr | awk '{print $2}' | tr '\r\n' ' '`
+  local unique_open_peers_by_frequency=`grep "is open" $CREDITCOIN_HOME/check_node_sanity.log | awk '{print $4}' | sort | uniq -c | sort -nr | awk '{print $2}' | tr '\r\n' ' '`
   local s=0
 
   # iterate over open peers from most to least frequent
@@ -61,7 +56,7 @@ function evaluate_candidates_for_dynamic_peering {
     }
   done
 
-  return 0
+  (($s > 0))  &&  return 0  ||  return 1
 }
 
 
@@ -121,38 +116,31 @@ function restart_creditcoin_node {
 }
 
 
-function run_sha256_speed_test {
-  local days_since_epoch=`expr $(date +%s) / 86400`
-  local run_test=false
-  local sha256_speed_file=`ls -t sha256_speed.* 2>/dev/null | head -1`
-
-  [ -z "$sha256_speed_file" ]  &&  run_test=true  ||  {
-    local last_speed_test="${sha256_speed_file##*.}"    # file extension is days since epoch
-    (($days_since_epoch - $last_speed_test >= 30))  &&  run_test=true  ||  run_test=false
+function check_sha256_throughput {
+  [ -s $CREDITCOIN_HOME/sha256_speed.log ]  ||  {
+    echo "No processing specification found for this machine.  Ensure script sha256_speed_test.sh is scheduled in crontab."
+    return 1
   }
 
-  [ $run_test = true ]  &&  {
-    echo Checking processing specification of this machine
-    local BASELINE=7565854    # measured on Xeon Platinum 8171M CPU @ 2.60GHz
-    sha256_speed_file=sha256_speed.$days_since_epoch
-    openssl speed sha256 2>$sha256_speed_file >/dev/null
-    local throughput=`grep "64 size" $sha256_speed_file | cut -d: -f2 |  awk '{print $1}'`
-    if (( throughput < BASELINE ))
-    then
-      echo This machine lacks sufficient power to run Creditcoin software.
-      return 1
-    fi
-  }
+  local sorted_throughputs=`tail -9 $CREDITCOIN_HOME/sha256_speed.log | awk '{print $3}' | sort | tr '\r\n' ' '`
+  local arr=($sorted_throughputs)
+  local arr_length=${#arr[@]}
+  local median_throughput="${arr[ $(($arr_length/2)) ]}"
+  local BASELINE=7565854    # measured on Azure VM running Xeon Platinum 8171M CPU @ 2.60GHz
 
+  (( median_throughput < BASELINE ))  &&  {
+    echo This machine lacks sufficient power to run Creditcoin software.
+    return 1
+  }
   return 0
 }
 
 
 [ -z $CREDITCOIN_HOME ]  &&  CREDITCOIN_HOME=~/Server
-cd $CREDITCOIN_HOME  ||  exit 1
 echo CREDITCOIN_HOME is $CREDITCOIN_HOME
+cd $CREDITCOIN_HOME  ||  exit 1
 
-run_sha256_speed_test  ||  exit 1
+check_sha256_throughput  ||  exit 1
 restart_creditcoin_node  ||  exit 1
 
 exit 0

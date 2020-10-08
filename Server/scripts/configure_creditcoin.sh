@@ -1,6 +1,7 @@
 #!/bin/bash
 
 [ -z $CREDITCOIN_HOME ]  &&  CREDITCOIN_HOME=~/Server
+echo CREDITCOIN_HOME is $CREDITCOIN_HOME
 cd $CREDITCOIN_HOME  ||  exit 1
 
 
@@ -20,17 +21,18 @@ function schedule_job_to_run_sanity_script {
     echo "$cc_user ALL=(ALL) NOPASSWD:SETENV: /usr/bin/docker-compose, /bin/sh" | sudo EDITOR='tee -a' visudo >/dev/null
   }
 
-
   crontab -l | grep -q CREDITCOIN_HOME  ||  {
-    # schedule job to periodically run sanity script by appending to current schedule
-
     echo CREDITCOIN_HOME is $CREDITCOIN_HOME
-    minutes_after_hour1=$((`date +%s` % 30))
-    minutes_after_hour2=$(($minutes_after_hour1 + 30))
+    minutes_after_hour_1=$((`date +%s` % 30))
+    minutes_after_hour_2=$(($minutes_after_hour_1 + 30))
 
+    # schedule jobs to:
+    #   a) run SHA-256 speed test after host bootup
+    #   b) periodically run node sanity script
     (crontab -l 2>/dev/null;
      echo CREDITCOIN_HOME=$CREDITCOIN_HOME;
-     echo "$minutes_after_hour1,$minutes_after_hour2 * * * * \$CREDITCOIN_HOME/check_node_sanity.sh >> \$CREDITCOIN_HOME/check_node_sanity.log 2>>\$CREDITCOIN_HOME/check_node_sanity-error.log") | crontab -
+     echo "@reboot (sleep 60; \$CREDITCOIN_HOME/sha256_speed_test.sh >>\$CREDITCOIN_HOME/sha256_speed.log 2>/dev/null)";
+     echo "$minutes_after_hour_1,$minutes_after_hour_2 * * * * \$CREDITCOIN_HOME/check_node_sanity.sh >>\$CREDITCOIN_HOME/check_node_sanity.log 2>>\$CREDITCOIN_HOME/check_node_sanity-error.log") | crontab -    # append to current schedule
 
     rc=$?
     schedule_rotation_of_node_sanity_logs
@@ -148,5 +150,7 @@ done
 
 schedule_job_to_run_sanity_script  ||  exit 1
 define_fields_in_gateway_config  ||  exit 1
+
+[ -s $CREDITCOIN_HOME/sha256_speed.log ]  ||  echo "Reboot this machine before running script 'start_creditcoin.sh'."
 
 exit 0
