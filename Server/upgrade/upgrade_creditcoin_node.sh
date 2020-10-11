@@ -20,27 +20,31 @@ function import_repository_key {
 
 
 function install_torrent_client_on_ubuntu {
+  local rc=0
   [ -x "$(command -v rtorrent)" ]  ||  {
     read -p "'rtorrent' not found.  Install? (y/n) " yn
     case $yn in
-      [Yy]*) apt-get update               ||  return 1
-             import_repository_key        ||  return 1
-             apt-get install -y rtorrent  ||  return 1
+      [Yy]*) cp -p /etc/apt/sources.list /etc/apt/sources.list_bak
+             sed -i 's/# deb-src/deb-src/' /etc/apt/sources.list  # enable download of source archives which contain package signatures
+             apt-get update               &&
+             import_repository_key        &&
+             apt-get install -y rtorrent  &&
+             apt-get source rtorrent      ||  rc=1
+             mv /etc/apt/sources.list_bak /etc/apt/sources.list
              ;;
-      *) return 1
+      *) rc=1
          ;;
     esac
   }
-  return 0
+  return $rc
 }
 
 
 function install_torrent_client_on_macos {
-  [ -x "$(command -v transmission-daemon)" ]  ||  {
-    echo 'transmission-daemon' not found.
-    read -p "Install? (y/n) " yn
+  [ -x "$(command -v rtorrent)" ]  ||  {
+    read -p "'rtorrent' not found.  Install? (y/n) " yn
     case $yn in
-      [Yy]*) brew install transmission  ||  return 1
+      [Yy]*) brew install rtorrent  ||  return 1
              ;;
       *) return 1
          ;;
@@ -58,20 +62,24 @@ case "${os_name}" in
       ;;
     Darwin*)
       install_torrent_client_on_macos  ||  exit 1
-      lsof -i :51413 >/dev/null  ||  transmission-daemon -c .  ||  exit 1
-      TORRENT_CLIENT="transmission-remote -a"
+      TORRENT_CLIENT=rtorrent
       ;;
     *) echo "Unsupported operating system: $os_name"
        exit 1
        ;;
 esac
 
+cat > ~/.rtorrent.rc << EOF
+## require incoming encrypted handshake and require encrypted transmission after handshake
+encryption = require
+EOF
+
 [ -z "$MAGNET_URI" ]  &&  {
   MAGNET_URI="magnet:?xt=urn:btih:5b2f2ebf6be7e37e7bdf71c5edf356a7dec87ca2&dn=creditcoin-block-volume.tar.gz&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce"
 }
 
 [ -z "$REQUIRED_DISK_SPACE_KB" ]  &&  REQUIRED_DISK_SPACE_KB=$((25 * 1024 * 1024))
-[ -z "$DOWNLOAD_DIRECTORY" ]  &&  DOWNLOAD_DIRECTORY=/
+[ -z "$DOWNLOAD_DIRECTORY" ]  &&  DOWNLOAD_DIRECTORY=`pwd`
 echo DOWNLOAD_DIRECTORY is $DOWNLOAD_DIRECTORY
 
 available_disk_space_kB=`df -Pk $DOWNLOAD_DIRECTORY | tail -1 | awk {'print $4'}`    # df POSIX output format is portable
@@ -103,7 +111,7 @@ case $yn in
 esac
 
 BLOCK_VOLUME_FILE=`echo $MAGNET_URI | sed -e 's/.*dn=\(.*\)\.tar\.gz.*/\1\.tar\.gz/'`
-BLOCK_VOLUME_PATH=/var/lib/docker/volumes/validator_validator-block-volume
+BLOCK_VOLUME_PATH=/var/lib/docker/volumes/server_validator-block-volume
 
 [ -f $DOWNLOAD_DIRECTORY/$BLOCK_VOLUME_FILE ]  ||  {
   echo $DOWNLOAD_DIRECTORY/$BLOCK_VOLUME_FILE not found.
@@ -114,7 +122,7 @@ docker-compose -f $docker_compose down
 
 rm $BLOCK_VOLUME_PATH/_data/* 2>/dev/null
 mkdir -p $BLOCK_VOLUME_PATH  ||  exit 1
-tar xzvf /$BLOCK_VOLUME_FILE --directory $BLOCK_VOLUME_PATH  ||  exit 1
+tar xzvf $DOWNLOAD_DIRECTORY/$BLOCK_VOLUME_FILE --directory $BLOCK_VOLUME_PATH  ||  exit 1
 
 docker-compose -f $docker_compose pull             || exit 1
 docker-compose -f $docker_compose build >/dev/null || exit 1
