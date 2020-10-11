@@ -21,8 +21,11 @@ function check_available_disk_space {
 
 
 function download_blockchain_snapshot {
+  local rc=0
+
   [ -z "$MAGNET_URI" ]  &&  {
     MAGNET_URI="magnet:?xt=urn:btih:5b2f2ebf6be7e37e7bdf71c5edf356a7dec87ca2&dn=creditcoin-block-volume.tar.gz&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce"
+    SHA256_SUM=6a10f081137481aca963d1432228d694948f38361b6980b5c13f30795036a26e    # if not defined, no verification is performed after snapshot download
   }
 
   local torrent_client
@@ -43,12 +46,20 @@ function download_blockchain_snapshot {
     return 1
   }
 
-  return 0
+  [ -n "$SHA256_SUM" ]  &&  {
+    echo Verifying SHA-256 digest of blockchain snapshot $BLOCK_VOLUME_FILE ...
+    [ $SHA256_SUM = `shasum -a 256 $DOWNLOAD_DIRECTORY/$BLOCK_VOLUME_FILE | awk {'print $1'}` ]  &&  rc=0  ||  {
+      echo Verification failed
+      rc=1
+    }
+  }  ||  echo "Warning: Blockchain snapshot $BLOCK_VOLUME_FILE cannot be verified since checksum is unknown"
+
+  return $rc
 }
 
 
 function get_torrent_command_line {
-  local -n torrent_client_reference=$1
+  local torrent_client_reference
   local rc=0
 
   [ -z "$TORRENT_CLIENT" ]  &&  {
@@ -74,12 +85,13 @@ EOF
     rc=$?
   }  ||  torrent_client_reference="$TORRENT_CLIENT"
 
+  eval $1=\$torrent_client_reference    # return by reference
   return $rc
 }
 
 
 function get_docker_compose_file_name {
-  local -n docker_compose_reference=$1
+  local docker_compose_reference
 
   docker_compose_reference=`ls -t *.yaml | head -1`
   [ -z "$docker_compose_reference" ]  &&  return 1
@@ -93,6 +105,7 @@ function get_docker_compose_file_name {
     }  ||  echo $user_entered not found.
   done
 
+  eval $1=\$docker_compose_reference    # return by reference
   return 0
 }
 
