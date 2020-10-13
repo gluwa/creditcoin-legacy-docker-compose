@@ -6,14 +6,13 @@ cd $CREDITCOIN_HOME  ||  exit 1
 
 
 function check_available_disk_space {
-  [ -z "$REQUIRED_DISK_SPACE_KB" ]  &&  REQUIRED_DISK_SPACE_KB=$((25 * 1024 * 1024))
-  [ -z "$DOWNLOAD_DIRECTORY" ]  &&  DOWNLOAD_DIRECTORY=`pwd`
-  echo DOWNLOAD_DIRECTORY is $DOWNLOAD_DIRECTORY
+  local download_directory=$1
+  local required_disk_space_kb=$2
 
-  available_disk_space_kB=`df -Pk $DOWNLOAD_DIRECTORY | tail -1 | awk {'print $4'}`    # df POSIX output format is portable
-  (( $available_disk_space_kB >= $REQUIRED_DISK_SPACE_KB ))  ||  {
-    echo "Available disk space is less than $(($REQUIRED_DISK_SPACE_KB >> 20)) GB:"
-    df -h $DOWNLOAD_DIRECTORY
+  available_disk_space_kB=`df -Pk $download_directory | tail -1 | awk {'print $4'}`    # df POSIX output format is portable
+  (( $available_disk_space_kB >= $required_disk_space_kb ))  ||  {
+    echo "Available disk space is less than $(($required_disk_space_kb >> 20)) GB:"
+    df -h $download_directory
     return 1
   }
   return 0
@@ -49,10 +48,10 @@ function download_blockchain_snapshot {
   [ -n "$SHA256_SUM" ]  &&  {
     echo Verifying SHA-256 digest of blockchain snapshot $BLOCK_VOLUME_FILE ...
     [ $SHA256_SUM = `shasum -a 256 $DOWNLOAD_DIRECTORY/$BLOCK_VOLUME_FILE | awk {'print $1'}` ]  &&  rc=0  ||  {
-      echo Verification failed
+      echo Verification failed.
       rc=1
     }
-  }  ||  echo "Warning: Blockchain snapshot $BLOCK_VOLUME_FILE cannot be verified since checksum is unknown"
+  }  ||  echo "Warning: Blockchain snapshot $BLOCK_VOLUME_FILE cannot be verified since checksum is unknown."
 
   return $rc
 }
@@ -106,9 +105,8 @@ function get_torrent_command_line {
          ;;
     esac
 
+    # empty configuration file suppresses log message
     cat > ~/.rtorrent.rc << EOF
-## require incoming encrypted handshake and require encrypted transmission after handshake
-encryption = require
 EOF
     rc=$?
   }  ||  torrent_client_reference="$TORRENT_CLIENT"
@@ -187,6 +185,23 @@ function install_torrent_client_on_macos {
 }
 
 
+# create symbolic links to restored files if name digits are different from those in production
+function create_symbolic_links_to_generic_lmdb_names {
+  local production_lmdb_digits=$1
+  [ -n "$production_lmdb_digits" ]  ||  return 0
+
+  local restored_lmdb_names=(`ls -l | egrep '\-[[:digit:]]{2}\.' | awk {'print $NF'} | tr '\r\n' ' '`)
+
+  for index in ${!restored_lmdb_names[*]}
+  do
+    local production_name=`echo ${restored_lmdb_names[$index]} | sed "s/[0-9]\{2\}/$production_lmdb_digits/"`
+    sudo ln -s ${restored_lmdb_names[$index]} $production_name 2>/dev/null
+  done
+
+  return 0
+}
+
+
 function restart_creditcoin_node {
   local docker_compose
   get_docker_compose_file_name  docker_compose  ||  return 1
@@ -196,10 +211,26 @@ function restart_creditcoin_node {
 
   docker-compose -f $docker_compose down
 
-  rm $block_volume_path/* 2>/dev/null
+  # symbolic links have top precedence; if none are found, use file names
+  local production_lmdb_digits=`find $block_volume_path -maxdepth 1 -type l | head -1 | xargs basename | grep -o -E '[0-9]+'`
+  [ -z "$production_lmdb_digits" ]  &&  {
+    production_lmdb_digits=`find $block_volume_path -maxdepth 1 -type f | head -1 | xargs basename | grep -o -E '[0-9]+'`
+  }
+
+  echo Superuser privilege is required to upgrade database.
+  sudo rm $block_volume_path/* 2>/dev/null
+
+  # need this check especially for brand new installation
+  local REQUIRED_DISK_SPACE_KB=$((100 * 1024 * 1024))
+  check_available_disk_space $block_volume_path $REQUIRED_DISK_SPACE_KB  ||  return 1
+
   block_volume_path=`dirname $block_volume_path`    # trim trailing '/_data'
-  mkdir -p $block_volume_path  ||  return 1
-  tar xzvf $DOWNLOAD_DIRECTORY/$BLOCK_VOLUME_FILE --directory $block_volume_path  ||  return 1
+  sudo mkdir -p $block_volume_path
+  sudo tar xzvf $DOWNLOAD_DIRECTORY/$BLOCK_VOLUME_FILE --directory $block_volume_path  ||  return 1
+
+  pushd $block_volume_path/_data >/dev/null
+  create_symbolic_links_to_generic_lmdb_names  $production_lmdb_digits  ||  return 1
+  popd >/dev/null
 
   docker-compose -f $docker_compose pull             || return 1
   docker-compose -f $docker_compose build >/dev/null || return 1
@@ -214,7 +245,11 @@ function restart_creditcoin_node {
 }
 
 
-check_available_disk_space    ||  exit 1
+[ -z "$REQUIRED_DISK_SPACE_KB" ]  &&  REQUIRED_DISK_SPACE_KB=$((25 * 1024 * 1024))    # required disk space for BitTorrent download
+[ -z "$DOWNLOAD_DIRECTORY" ]  &&  DOWNLOAD_DIRECTORY=`pwd`
+echo DOWNLOAD_DIRECTORY is $DOWNLOAD_DIRECTORY
+
+check_available_disk_space $DOWNLOAD_DIRECTORY $REQUIRED_DISK_SPACE_KB  ||  exit 1
 download_blockchain_snapshot  ||  exit 1
 restart_creditcoin_node       ||  exit 1
 
