@@ -25,7 +25,7 @@ function download_blockchain_snapshot {
 
   [ -z "$MAGNET_URI" ]  &&  {
     MAGNET_URI="magnet:?xt=urn:btih:5b2f2ebf6be7e37e7bdf71c5edf356a7dec87ca2&dn=creditcoin-block-volume.tar.gz&tr=udp%3a%2f%2ftracker.openbittorrent.com%3a80&tr=udp%3a%2f%2ftracker.opentrackr.org%3a1337%2fannounce"
-    SHA256_SUM=6a10f081137481aca963d1432228d694948f38361b6980b5c13f30795036a26e    # if not defined, no verification is performed after snapshot download
+    SHA256_SUM=6a10f081137481aca963d1432228d694948f38361b6980b5c13f30795036a26e  # if not defined, no verification is performed after snapshot download
   }
 
   local torrent_client
@@ -54,6 +54,34 @@ function download_blockchain_snapshot {
     }
   }  ||  echo "Warning: Blockchain snapshot $BLOCK_VOLUME_FILE cannot be verified since checksum is unknown"
 
+  return $rc
+}
+
+
+function get_block_volume_path {
+  ps -ef | grep -q "[s]awtooth-validator"  ||  {
+    local docker_compose=$1
+    docker-compose -f $docker_compose up -d validator  &&  {
+      ps -ef | grep -q "[s]awtooth-validator"  ||  {
+        echo Validator failed to start.
+        return 1
+      }
+    }  ||  return 1
+  }
+
+  local CONTAINER=`docker ps | grep [s]awtooth-validator | awk {'print $NF'}`
+  local block_volume_path_reference=`docker inspect $CONTAINER | grep _data | grep block`
+  local rc=$?
+
+  [ $rc = 0 ]  &&  {
+    [ -z "$block_volume_path_reference" ]  &&  {
+      echo "Block volume path not found for container $CONTAINER ."
+      return 1
+    }
+    block_volume_path_reference=/var/lib`echo $block_volume_path_reference | cut -d \" -f4`
+  }
+
+  eval $2=\$block_volume_path_reference    # return by reference
   return $rc
 }
 
@@ -160,15 +188,18 @@ function install_torrent_client_on_macos {
 
 
 function restart_creditcoin_node {
-  local BLOCK_VOLUME_PATH=/var/lib/docker/volumes/server_validator-block-volume
   local docker_compose
-
   get_docker_compose_file_name  docker_compose  ||  return 1
+
+  local block_volume_path
+  get_block_volume_path  $docker_compose  block_volume_path  ||  return 1
+
   docker-compose -f $docker_compose down
 
-  rm $BLOCK_VOLUME_PATH/_data/* 2>/dev/null
-  mkdir -p $BLOCK_VOLUME_PATH  ||  return 1
-  tar xzvf $DOWNLOAD_DIRECTORY/$BLOCK_VOLUME_FILE --directory $BLOCK_VOLUME_PATH  ||  return 1
+  rm $block_volume_path/* 2>/dev/null
+  block_volume_path=`dirname $block_volume_path`    # trim trailing '/_data'
+  mkdir -p $block_volume_path  ||  return 1
+  tar xzvf $DOWNLOAD_DIRECTORY/$BLOCK_VOLUME_FILE --directory $block_volume_path  ||  return 1
 
   docker-compose -f $docker_compose pull             || return 1
   docker-compose -f $docker_compose build >/dev/null || return 1
