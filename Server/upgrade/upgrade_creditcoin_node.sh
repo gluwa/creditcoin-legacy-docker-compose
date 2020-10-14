@@ -1,4 +1,20 @@
 #!/bin/bash
+#    Copyright(c) 2020 Gluwa, Inc.
+#
+#    This file is part of Creditcoin.
+#
+#    Creditcoin is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Lesser General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#    GNU Lesser General Public License for more details.
+#
+#    You should have received a copy of the GNU Lesser General Public License
+#    along with Creditcoin. If not, see <https://www.gnu.org/licenses/>.
 
 [ -z "$CREDITCOIN_HOME" ]  &&  CREDITCOIN_HOME=~/Server
 echo CREDITCOIN_HOME is $CREDITCOIN_HOME
@@ -212,13 +228,19 @@ function restart_creditcoin_node {
   docker-compose -f $docker_compose down
 
   # symbolic links have top precedence; if none are found, use file names
-  local production_lmdb_digits=`find $block_volume_path -maxdepth 1 -type l | head -1 | xargs basename | grep -o -E '[0-9]+'`
+  local production_lmdb_digits=`find $block_volume_path -maxdepth 1 -type l | xargs basename | egrep -o '[0-9]+' | head -1`
   [ -z "$production_lmdb_digits" ]  &&  {
-    production_lmdb_digits=`find $block_volume_path -maxdepth 1 -type f | head -1 | xargs basename | grep -o -E '[0-9]+'`
+    production_lmdb_digits=`find $block_volume_path -maxdepth 1 -type f | xargs basename | egrep -o '[0-9]+' | head -1`  # for files, 'head' must follow 'egrep'
   }
 
-  echo Superuser privilege is required to upgrade database.
-  sudo rm $block_volume_path/* 2>/dev/null
+  read -p "Warning: existing Creditcoin database will be replaced.  Proceed? (y/n) " yn
+  case $yn in
+    [Yy]*) echo Superuser privilege is required to upgrade database.
+           sudo rm $block_volume_path/* 2>/dev/null
+           ;;
+    *) return 1
+       ;;
+  esac
 
   # need this check especially for brand new installation
   local REQUIRED_DISK_SPACE_KB=$((100 * 1024 * 1024))
