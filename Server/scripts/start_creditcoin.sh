@@ -1,13 +1,31 @@
 #!/bin/bash
+#    Copyright(c) 2020 Gluwa, Inc.
+#
+#    This file is part of Creditcoin.
+#
+#    Creditcoin is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Lesser General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#    GNU Lesser General Public License for more details.
+#
+#    You should have received a copy of the GNU Lesser General Public License
+#    along with Creditcoin. If not, see <https://www.gnu.org/licenses/>.
 
-[ -x "$(command -v nc)" ]  ||  {
-  echo 'netcat' not found.
-  exit 1
-}
 
 [ -x "$(command -v docker-compose)" ]  ||  {
   echo 'docker-compose' not found.
   exit 1
+}
+
+
+function timestamp {
+  local ts=`date +"%Y-%m-%d %H:%M:%S"`
+  echo -n $ts
 }
 
 
@@ -24,7 +42,7 @@ function check_if_different_ipv4_subnet {
 
 
 function evaluate_candidates_for_dynamic_peering {
-  [ -f $CREDITCOIN_HOME/check_node_sanity.log ]  ||  return 1
+  [ -s $CREDITCOIN_HOME/check_node_sanity.log ]  ||  return 1
 
   local -n seeds_array_reference=$1
   local seeds_array_length=${#seeds_array_reference[@]}
@@ -50,7 +68,7 @@ function evaluate_candidates_for_dynamic_peering {
       done
     }
 
-    [ $different_subnet = true ]  &&  nc -z -w 1 $host $port  &&  {
+    [ $different_subnet = true ]  &&  $NETCAT -z -w 1 $host $port  &&  {
       seeds_array_reference[$s]=$open_peer
       ((++s == $seeds_array_length))  &&  break
     }
@@ -70,10 +88,12 @@ function restart_creditcoin_node {
     return 1
   }
 
-  local last_public_ipv4_address=`grep "Public IP" $CREDITCOIN_HOME/check_node_sanity.log | tail -1 | awk '{print $NF}'`
-  [ -n "$last_public_ipv4_address" ]  &&  [ $last_public_ipv4_address != $public_ipv4_address ]  &&  {
-    # write warning to stderr
-    >&2 echo "Warning: Public IP address has recently changed.  Creditcoin nodes cannot have dynamic IP addresses."
+  [ -s $CREDITCOIN_HOME/check_node_sanity.log ]  &&  {
+    local last_public_ipv4_address=`grep "Public IP" $CREDITCOIN_HOME/check_node_sanity.log | tail -1 | awk '{print $NF}'`
+    [ -n "$last_public_ipv4_address" ]  &&  [ $last_public_ipv4_address != $public_ipv4_address ]  &&  {
+      # write warning to stderr
+      >&2 echo "Warning: Public IP address has recently changed.  Creditcoin nodes cannot have dynamic IP addresses."
+    }
   }
 
   # replace advertised Validator endpoint with current public IP address; retain existing port number
@@ -95,12 +115,14 @@ function restart_creditcoin_node {
   sudo docker-compose -f $docker_compose down 2>/dev/null
   if sudo docker-compose -f $docker_compose up -d
   then
-    echo Started Creditcoin node
+    timestamp
+    echo " Started Creditcoin node"
 
     # check if Validator endpoint is reachable from internet
     local validator_endpoint_port=`grep endpoint $docker_compose | cut -d: -f3 | awk '{print $1}'`
-    nc -4 -z -w 1  $public_ipv4_address  $validator_endpoint_port  ||  {
-      echo -n "TCP port $validator_endpoint_port isn't open. "
+    $NETCAT -4 -z -w 1  $public_ipv4_address  $validator_endpoint_port  ||  {
+      timestamp
+      echo -n " TCP port $validator_endpoint_port isn't open. "
       validator=`ps -ef | grep "[u]sr/bin/sawtooth-validator"`
       [[ -z $validator ]]  &&  echo "Validator isn't running."  ||  echo Check firewall rules.
       return 1
@@ -129,7 +151,7 @@ function check_sha256_throughput {
   local BASELINE=7565854    # measured on Azure VM running Xeon Platinum 8171M CPU @ 2.60GHz
 
   (( median_throughput < BASELINE ))  &&  {
-    echo This machine lacks sufficient power to run Creditcoin software.
+    echo Warning: this machine lacks sufficient power to run Creditcoin software.
     return 1
   }
   return 0
@@ -139,6 +161,24 @@ function check_sha256_throughput {
 [ -z $CREDITCOIN_HOME ]  &&  CREDITCOIN_HOME=~/Server
 echo CREDITCOIN_HOME is $CREDITCOIN_HOME
 cd $CREDITCOIN_HOME  ||  exit 1
+
+os_name="$(uname -s)"
+case "${os_name}" in
+  Linux*)
+    NETCAT=nc
+    ;;
+  Darwin*)
+    NETCAT=ncat    # 'nc' isn't reliable on macOS
+    ;;
+  *) echo "Unsupported operating system: $os_name"
+     exit 1
+     ;;
+esac
+
+[ -x "$(command -v $NETCAT)" ]  ||  {
+  echo 'netcat' not found.
+  exit 1
+}
 
 check_sha256_throughput  ||  exit 1
 restart_creditcoin_node  ||  exit 1
