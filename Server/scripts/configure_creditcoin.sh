@@ -102,14 +102,14 @@ function define_fields_in_gateway_config {
 
   # remove any existing RPC URLs
   cp -p $GATEWAY_CONFIG "$GATEWAY_CONFIG"_orig
-  sed -i '/"rpc"/d' $GATEWAY_CONFIG
+  sed -i.bak '/"rpc"/d' $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
 
   read -p "Bitcoin RPC: " bitcoin_rpc
   validate_rpc_url $bitcoin_rpc  &&  {
-    sed -i "s~<bitcoin_rpc_node_url>~$bitcoin_rpc~w btc_change.txt" $GATEWAY_CONFIG    # delimiter is ~ since RPC URL contains /
+    sed -i.bak "s~<bitcoin_rpc_node_url>~$bitcoin_rpc~w btc_change.txt" $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak    # delimiter is ~ since RPC URL contains /
     [ -s btc_change.txt ]  ||  {
       # original <bitcoin_..._url> not found; insert new value
-      sed -i 's~"bitcoin"[[:blank:]]*:[[:blank:]]*{~&\n        "rpc": "'$bitcoin_rpc'",~' $GATEWAY_CONFIG
+      sed -i.bak 's~"bitcoin"[[:blank:]]*:[[:blank:]]*{~&\'$'\n''        "rpc": "'$bitcoin_rpc'",~' $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
     }
     rm btc_change.txt 2>/dev/null
   }  ||  {
@@ -119,11 +119,11 @@ function define_fields_in_gateway_config {
 
   read -p "Ethereum RPC: " ethereum_rpc
   validate_rpc_url $ethereum_rpc  &&  {
-    sed -i "s~<ethereum_node_url>~$ethereum_rpc~w eth_change.txt" $GATEWAY_CONFIG
+    sed -i.bak "s~<ethereum_node_url>~$ethereum_rpc~w eth_change.txt" $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
     [ -s eth_change.txt ]  ||  {
-      sed -i 's~"ethereum"[[:blank:]]*:[[:blank:]]*{~&\n        "rpc": "'$ethereum_rpc'",~' $GATEWAY_CONFIG
-      sed -i 's~"ethless"[[:blank:]]*:[[:blank:]]*{~&\n        "rpc": "'$ethereum_rpc'",~' $GATEWAY_CONFIG
-      sed -i 's~"erc20"[[:blank:]]*:[[:blank:]]*{~&\n        "rpc": "'$ethereum_rpc'",~' $GATEWAY_CONFIG
+      sed -i.bak 's~"ethereum"[[:blank:]]*:[[:blank:]]*{~&\'$'\n''        "rpc": "'$ethereum_rpc'",~' $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
+      sed -i.bak 's~"ethless"[[:blank:]]*:[[:blank:]]*{~&\'$'\n''        "rpc": "'$ethereum_rpc'",~' $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
+      sed -i.bak 's~"erc20"[[:blank:]]*:[[:blank:]]*{~&\'$'\n''        "rpc": "'$ethereum_rpc'",~' $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
     }
     rm eth_change.txt 2>/dev/null
   }  ||  {

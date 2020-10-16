@@ -44,8 +44,8 @@ function check_if_different_ipv4_subnet {
 function evaluate_candidates_for_dynamic_peering {
   [ -s $CREDITCOIN_HOME/check_node_sanity.log ]  ||  return 1
 
-  local -n seeds_array_reference=$1
-  local seeds_array_length=${#seeds_array_reference[@]}
+  local seeds_array_reference
+  local seeds_array_length=$2
   local unique_open_peers_by_frequency=`grep "is open" $CREDITCOIN_HOME/check_node_sanity.log | awk '{print $4}' | sort | uniq -c | sort -nr | awk '{print $2}' | tr '\r\n' ' '`
   local s=0
 
@@ -74,6 +74,8 @@ function evaluate_candidates_for_dynamic_peering {
     }
   done
 
+  eval $1='("${seeds_array_reference[@]}")'    # construct array and return it by reference
+
   (($s > 0))  &&  return 0  ||  return 1
 }
 
@@ -97,18 +99,21 @@ function restart_creditcoin_node {
   }
 
   # replace advertised Validator endpoint with current public IP address; retain existing port number
-  sed -i "s~\(endpoint tcp://\).*\(:\)~\1$public_ipv4_address\2~g" $docker_compose
+  sed -i.bak "s~\(endpoint[[:space:]]\{1,\}tcp://\).*\(:\)~\1$public_ipv4_address\2~g" $docker_compose  &&  rm ${docker_compose}.bak
 
-  if grep -q "peering dynamic" $docker_compose
+  if grep -q "peering[[:space:]]\+dynamic" $docker_compose
   then
     local seeds=([0]="" [1]="" [2]="")
-    evaluate_candidates_for_dynamic_peering seeds  &&  sed -i '/seeds tcp:.*\\/d' $docker_compose    # remove existing seeds
+    evaluate_candidates_for_dynamic_peering  seeds  ${#seeds[@]}  &&  {
+      sed -i.bak '/seeds[[:space:]]\{1,\}tcp:.*$/d' $docker_compose  &&  rm ${docker_compose}.bak    # remove existing seeds
+    }
 
     # insert new seeds into .yaml file
     preamble="                --seeds tcp://"
     for seed in "${seeds[@]}"
     do
-      [ -n "$seed" ]  &&  sed -i '/peering dynamic.*\\/ s~^~'"$preamble$seed"' \\\n~' $docker_compose
+                                                                                                     # $'\n' represents a newline
+      [ -n "$seed" ]  &&  sed -i.bak '/peering[[:space:]]\{1,\}dynamic.*\\/ s~^~'"$preamble$seed"' \\\'$'\n''~' $docker_compose  &&  rm ${docker_compose}.bak
     done
   fi
 
