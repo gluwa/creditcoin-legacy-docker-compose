@@ -16,13 +16,6 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with Creditcoin. If not, see <https://www.gnu.org/licenses/>.
 
-
-[ -x "$(command -v docker-compose)" ]  ||  {
-  echo 'docker-compose' not found.
-  exit 1
-}
-
-
 function timestamp {
   local ts=`date +"%Y-%m-%d %H:%M:%S"`
   echo -n $ts
@@ -68,7 +61,7 @@ function evaluate_candidates_for_dynamic_peering {
       done
     }
 
-    [ $different_subnet = true ]  &&  $NETCAT -z -w 1 $host $port  &&  {
+    [ $different_subnet = true ]  &&  $NETCAT -z -w 2 $host $port  &&  {
       seeds_array_reference[$s]=$open_peer
       ((++s == $seeds_array_length))  &&  break
     }
@@ -77,6 +70,33 @@ function evaluate_candidates_for_dynamic_peering {
   eval $1='("${seeds_array_reference[@]}")'    # construct array and return it by reference
 
   (($s > 0))  &&  return 0  ||  return 1
+}
+
+
+function install_docker_compose {
+  local DESTINATION=$1
+  local VERSION=1.26.2
+
+  [ $(uname -s) = Linux ]  &&  {
+    sudo apt update  ||  return 1
+    sudo apt install curl  ||  return 1
+  }
+  sudo curl -L https://github.com/docker/compose/releases/download/${VERSION}/docker-compose-$(uname -s)-$(uname -m) -o $DESTINATION  ||  return 1
+  sudo chmod 755 $DESTINATION
+
+  return 0
+}
+
+
+function install_netcat {
+  [ $(uname -s) = Linux ]  &&  {
+    [ -x ./install_apt_packages.sh ]  &&  ./install_apt_packages.sh  netcat-openbsd  ||  return 1
+  }  ||  {
+    [ $(uname -s) = Darwin ]  &&  {
+      brew install nmap 2>/dev/null  ||  brew upgrade nmap  ||  return 1
+    }
+  }
+  return 0
 }
 
 
@@ -117,8 +137,10 @@ function restart_creditcoin_node {
     done
   fi
 
-  sudo docker-compose -f $docker_compose down 2>/dev/null
-  if sudo docker-compose -f $docker_compose up -d
+  docker ps -q &>/dev/null  ||  start_docker_daemon  ||  return 1
+
+  sudo $DOCKER_COMPOSE -f $docker_compose down 2>/dev/null
+  if sudo $DOCKER_COMPOSE -f $docker_compose up -d
   then
     timestamp
     echo " Started Creditcoin node"
@@ -140,6 +162,24 @@ function restart_creditcoin_node {
   fi
 
   return $rc
+}
+
+
+function start_docker_daemon {
+  [ $(uname -s) = Linux ]  &&  {
+    sudo service docker start  ||  return 1
+  }  ||  {
+    [ $(uname -s) = Darwin ]  &&  {
+      open --background -a Docker  &&  {
+        # could take up to 20 seconds to start
+        while ! docker system info &>/dev/null
+        do
+          sleep 1
+        done
+      }  ||  return 1
+    }
+  }
+  return 0
 }
 
 
@@ -170,10 +210,12 @@ cd $CREDITCOIN_HOME  ||  exit 1
 os_name="$(uname -s)"
 case "${os_name}" in
   Linux*)
+    DOCKER_COMPOSE=/usr/bin/docker-compose
     NETCAT=nc
     ;;
   Darwin*)
-    NETCAT=ncat    # 'nc' isn't reliable on macOS
+    DOCKER_COMPOSE=/usr/local/bin/docker-compose  # /usr/bin has no write permission
+    NETCAT=ncat                                   # 'nc' isn't reliable on macOS
     ;;
   *) echo "Unsupported operating system: $os_name"
      exit 1
@@ -181,8 +223,29 @@ case "${os_name}" in
 esac
 
 [ -x "$(command -v $NETCAT)" ]  ||  {
-  echo 'netcat' not found.
-  exit 1
+  echo "'netcat' not found."
+  tty -s  &&  {
+    read -p "Install? (y/n) " yn
+    case $yn in
+      [Yy]*) install_netcat  ||  exit 1
+             ;;
+      *) exit 1
+         ;;
+    esac
+  }  ||  exit 1    # exit with error if crontab job
+}
+
+[ -x "$(command -v docker-compose)" ]  &&  DOCKER_COMPOSE=`which docker-compose`  ||  {
+  echo "'docker-compose' not found."
+  tty -s  &&  {
+    read -p "Install? (y/n) " yn
+    case $yn in
+      [Yy]*) install_docker_compose $DOCKER_COMPOSE  ||  exit 1
+             ;;
+      *) exit 1
+         ;;
+    esac
+  }  ||  exit 1    # exit with error if crontab job
 }
 
 check_sha256_throughput  ||  exit 1
