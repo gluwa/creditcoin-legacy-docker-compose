@@ -5,9 +5,36 @@ echo CREDITCOIN_HOME is $CREDITCOIN_HOME
 cd $CREDITCOIN_HOME  ||  exit 1
 
 
+function define_creditcoin_home_in_bashrc {
+  grep -q CREDITCOIN_HOME ~/.bashrc  ||  {
+    local user_entered
+    while :
+    do
+      read -p "Enter CREDITCOIN_HOME ($CREDITCOIN_HOME): " user_entered
+      [ -z "$user_entered" ]  &&  break
+      [ -d $user_entered ]  &&  {
+        CREDITCOIN_HOME=$user_entered
+        break
+      }  ||  echo $user_entered not found.
+    done
+
+    cat >> ~/.bashrc << EOF
+export CREDITCOIN_HOME=$CREDITCOIN_HOME
+EOF
+  }
+  return 0
+}
+
+
 function remove_job_that_runs_sanity_script {
+  local SUDOERS=/etc/sudoers
+
+  sed -i.bak "/CREDITCOIN_HOME/d" ~/.bashrc  &&  rm ~/.bashrc.bak
+  cc_user=`whoami`
+  sudo sed -i.bak "/$cc_user.*Creditcoin$/d" $SUDOERS  &&  sudo rm ${SUDOERS}.bak
   sudo rm /etc/logrotate.d/creditcoin_node_logs 2>/dev/null
   crontab -l | grep -v CREDITCOIN_HOME | crontab -
+
   return $?
 }
 
@@ -17,12 +44,13 @@ function schedule_job_to_run_sanity_script {
 
   # allow sudo execution in crontab without tty
   cc_user=`whoami`
-  sudo grep -q "$cc_user ALL" /etc/sudoers  ||  {
-    echo "$cc_user ALL=(ALL) NOPASSWD:SETENV: /usr/bin/docker-compose, /bin/sh" | sudo EDITOR='tee -a' visudo >/dev/null
+  sudo grep -q "$cc_user.*Creditcoin$" /etc/sudoers  ||  {
+    local INIT_SERVICE
+    [ $(uname -s) = Linux ]  &&  INIT_SERVICE=/usr/sbin/service,
+    echo "$cc_user ALL=(ALL) NOPASSWD:SETENV: /usr/bin/docker-compose, $INIT_SERVICE /bin/sh    # Creditcoin" | sudo EDITOR='tee -a' visudo >/dev/null
   }
 
   crontab -l | grep -q CREDITCOIN_HOME  ||  {
-    echo CREDITCOIN_HOME is $CREDITCOIN_HOME
     minutes_after_hour_1=$((`date +%s` % 30))
     minutes_after_hour_2=$(($minutes_after_hour_1 + 30))
 
@@ -88,7 +116,7 @@ function validate_rpc_url {
     }
   }
 
-  nc -z $udp -w 1 $fqdn $port
+  $NETCAT -z $udp -w 1 $fqdn $port
   rc=$?
   [ $rc = 1 ]  &&  echo "Warning: RPC port at $rpc_mainnet isn't open"
 
@@ -148,8 +176,22 @@ case $i in
 esac
 done
 
+os_name="$(uname -s)"
+case "${os_name}" in
+  Linux*)
+    NETCAT=nc
+    ;;
+  Darwin*)
+    NETCAT=ncat    # 'nc' isn't reliable on macOS
+    ;;
+  *) echo "Unsupported operating system: $os_name"
+     exit 1
+     ;;
+esac
+
+define_creditcoin_home_in_bashrc   ||  exit 1
 schedule_job_to_run_sanity_script  ||  exit 1
-define_fields_in_gateway_config  ||  exit 1
+define_fields_in_gateway_config    ||  exit 1
 
 [ -s $CREDITCOIN_HOME/sha256_speed.log ]  ||  echo "Reboot this machine before running script 'start_creditcoin.sh'."
 

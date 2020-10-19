@@ -34,6 +34,48 @@ function check_if_different_ipv4_subnet {
 }
 
 
+function check_required_executables {
+  [ -x "$(command -v $NETCAT)" ]  ||  {
+    echo "'netcat' not found."
+    tty -s  &&  {
+      read -p "Install? (y/n) " yn
+      case $yn in
+        [Yy]*) install_netcat  ||  return 1
+               ;;
+        *) return 1
+           ;;
+      esac
+    }  ||  return 1    # exit with error if crontab job
+  }
+
+  [ -x "$(command -v docker-compose)" ]  &&  DOCKER_COMPOSE=`which docker-compose`  ||  {
+    echo "'docker-compose' not found."
+    tty -s  &&  {
+      read -p "Install? (y/n) " yn
+      case $yn in
+        [Yy]*) install_docker_compose $DOCKER_COMPOSE  ||  return 1
+               ;;
+        *) return 1
+           ;;
+      esac
+    }  ||  return 1    # exit with error if crontab job
+  }
+
+  [ -x "$(command -v curl)" ]  ||  {
+    echo "'curl' not found."
+    tty -s  &&  {
+      read -p "Install? (y/n) " yn
+      case $yn in
+        [Yy]*) install_curl  ||  return 1
+               ;;
+        *) return 1
+           ;;
+      esac
+    }  ||  return 1    # exit with error if crontab job
+  }
+}
+
+
 function evaluate_candidates_for_dynamic_peering {
   [ -s $CREDITCOIN_HOME/check_node_sanity.log ]  ||  return 1
 
@@ -73,14 +115,38 @@ function evaluate_candidates_for_dynamic_peering {
 }
 
 
+function get_docker_compose_file_name {
+  local docker_compose_reference
+
+  docker_compose_reference=`ls -t *.yaml | head -1`
+  [ -z "$docker_compose_reference" ]  &&  return 1
+  while :
+  do
+    read -p "Enter name of Docker compose file ($docker_compose_reference) " user_entered
+    [ -z "$user_entered" ]  &&  break
+    [ -s $CREDITCOIN_HOME/$user_entered ]  &&  {
+      docker_compose_reference=$user_entered
+      break
+    }  ||  echo $user_entered not found.
+  done
+
+  eval $1=\$docker_compose_reference    # return by reference
+  return 0
+}
+
+
+function install_curl {
+  [ $(uname -s) = Linux ]  &&  {
+    sudo apt-get install -y curl  ||  return 1
+  }
+  return 0
+}
+
+
 function install_docker_compose {
   local DESTINATION=$1
   local VERSION=1.26.2
 
-  [ $(uname -s) = Linux ]  &&  {
-    sudo apt update  ||  return 1
-    sudo apt install curl  ||  return 1
-  }
   sudo curl -L https://github.com/docker/compose/releases/download/${VERSION}/docker-compose-$(uname -s)-$(uname -m) -o $DESTINATION  ||  return 1
   sudo chmod 755 $DESTINATION
 
@@ -101,8 +167,8 @@ function install_netcat {
 
 
 function restart_creditcoin_node {
-  local docker_compose=`ls -t *.yaml | head -1`
-  [ -z $docker_compose ]  &&  return 1
+  local docker_compose
+  get_docker_compose_file_name  docker_compose  ||  return 1
 
   local public_ipv4_address=`curl https://ifconfig.me 2>/dev/null`
   [ -z $public_ipv4_address ]  &&  {
@@ -183,6 +249,14 @@ function start_docker_daemon {
 }
 
 
+function stop_creditcoin_node {
+  local docker_compose
+  get_docker_compose_file_name  docker_compose  ||  return 1
+  sudo $DOCKER_COMPOSE -f $docker_compose down 2>/dev/null
+  return $?
+}
+
+
 function check_sha256_throughput {
   [ -s $CREDITCOIN_HOME/sha256_speed.log ]  ||  {
     echo "No processing specification found for this machine.  Ensure script sha256_speed_test.sh is scheduled in crontab."
@@ -222,31 +296,18 @@ case "${os_name}" in
      ;;
 esac
 
-[ -x "$(command -v $NETCAT)" ]  ||  {
-  echo "'netcat' not found."
-  tty -s  &&  {
-    read -p "Install? (y/n) " yn
-    case $yn in
-      [Yy]*) install_netcat  ||  exit 1
-             ;;
-      *) exit 1
-         ;;
-    esac
-  }  ||  exit 1    # exit with error if crontab job
-}
+check_required_executables  ||  exit 1
 
-[ -x "$(command -v docker-compose)" ]  &&  DOCKER_COMPOSE=`which docker-compose`  ||  {
-  echo "'docker-compose' not found."
-  tty -s  &&  {
-    read -p "Install? (y/n) " yn
-    case $yn in
-      [Yy]*) install_docker_compose $DOCKER_COMPOSE  ||  exit 1
-             ;;
-      *) exit 1
-         ;;
-    esac
-  }  ||  exit 1    # exit with error if crontab job
-}
+for i in "$@"
+do
+case $i in
+  -s*|--stop*)
+    stop_creditcoin_node  &&  exit 0  ||  exit 1
+    ;;
+  *)
+    ;;
+esac
+done
 
 check_sha256_throughput  ||  exit 1
 restart_creditcoin_node  ||  exit 1
