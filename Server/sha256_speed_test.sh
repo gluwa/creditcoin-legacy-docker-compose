@@ -1,0 +1,1 @@
+scripts/sha256_speed_test.sh
