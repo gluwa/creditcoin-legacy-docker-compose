@@ -5,8 +5,27 @@ echo CREDITCOIN_HOME is $CREDITCOIN_HOME
 cd $CREDITCOIN_HOME  ||  exit 1
 
 
+function define_login_profile_macos {
+  local profile_reference
+  local shell=`basename $SHELL`
+  case $shell in
+    zsh)
+      profile_reference=~/.zprofile
+      ;;
+    bash)
+      profile_reference=~/.bash_profile
+      ;;
+    *) echo "Unsupported shell: $shell"
+       return 1
+       ;;
+  esac
+  eval $1=\$profile_reference
+  return 0
+}
+
+
 function define_creditcoin_home_in_bashrc {
-  grep -q CREDITCOIN_HOME ~/.bashrc  ||  {
+  grep -q CREDITCOIN_HOME $BASH_RC 2>/dev/null  ||  {
     local user_entered
     while :
     do
@@ -18,10 +37,11 @@ function define_creditcoin_home_in_bashrc {
       }  ||  echo $user_entered not found.
     done
 
-    cat >> ~/.bashrc << EOF
+    cat >> $BASH_RC << EOF
 export CREDITCOIN_HOME=$CREDITCOIN_HOME
 EOF
   }
+
   return 0
 }
 
@@ -29,7 +49,7 @@ EOF
 function remove_job_that_runs_sanity_script {
   local SUDOERS=/etc/sudoers
 
-  sed -i.bak "/CREDITCOIN_HOME/d" ~/.bashrc  &&  rm ~/.bashrc.bak
+  sed -i.bak "/CREDITCOIN_HOME/d" $BASH_RC  &&  rm ${BASH_RC}.bak
   cc_user=`whoami`
   sudo sed -i.bak "/$cc_user.*Creditcoin$/d" $SUDOERS  &&  sudo rm ${SUDOERS}.bak
   sudo rm /etc/logrotate.d/creditcoin_node_logs 2>/dev/null
@@ -165,6 +185,21 @@ function define_fields_in_gateway_config {
 }
 
 
+os_name="$(uname -s)"
+case "${os_name}" in
+  Linux*)
+    BASH_RC=~/.bashrc
+    NETCAT=nc
+    ;;
+  Darwin*)
+    define_login_profile_macos BASH_RC  ||  exit 1
+    NETCAT=ncat    # 'nc' isn't reliable on macOS
+    ;;
+  *) echo "Unsupported operating system: $os_name"
+     exit 1
+     ;;
+esac
+
 for i in "$@"
 do
 case $i in
@@ -175,19 +210,6 @@ case $i in
     ;;
 esac
 done
-
-os_name="$(uname -s)"
-case "${os_name}" in
-  Linux*)
-    NETCAT=nc
-    ;;
-  Darwin*)
-    NETCAT=ncat    # 'nc' isn't reliable on macOS
-    ;;
-  *) echo "Unsupported operating system: $os_name"
-     exit 1
-     ;;
-esac
 
 define_creditcoin_home_in_bashrc   ||  exit 1
 schedule_job_to_run_sanity_script  ||  exit 1

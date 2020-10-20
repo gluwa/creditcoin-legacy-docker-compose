@@ -27,7 +27,7 @@ $NETCAT -z -w 2 $host $port  &&  {
     do
       decoded_data=`echo $c | base64 --decode`
       decoded_epoch_time=`echo $decoded_data | awk -F: '{print $NF}'`
-      echo `date +"%Y-%m-%d %H:%M:%S" -d @$decoded_epoch_time` $decoded_data
+      echo `date +"%Y-%m-%d %H:%M:%S" -d @$decoded_epoch_time` $decoded_data    # display timestamp in human-readable format
     done
   }
 }  ||  {
