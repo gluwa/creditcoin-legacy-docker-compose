@@ -73,13 +73,17 @@ function schedule_job_to_run_sanity_script {
   crontab -l | grep -q CREDITCOIN_HOME  ||  {
     minutes_after_hour_1=$((`date +%s` % 30))
     minutes_after_hour_2=$(($minutes_after_hour_1 + 30))
+    day_of_month=$((`date +%d`))
+    (($day_of_month > 28))  &&  day_of_month=1
 
     # schedule jobs to:
-    #   a) run SHA-256 speed test after host bootup
-    #   b) periodically run node sanity script
+    #   a) start Creditcoin node after bootup of host machine
+    #   b) run SHA-256 speed test every month
+    #   c) periodically run node sanity script
     (crontab -l 2>/dev/null;
      echo CREDITCOIN_HOME=$CREDITCOIN_HOME;
-     echo "@reboot (sleep 60; \$CREDITCOIN_HOME/sha256_speed_test.sh >>\$CREDITCOIN_HOME/sha256_speed.log 2>/dev/null)";
+     echo "@reboot (\$CREDITCOIN_HOME/start_creditcoin.sh >>\$CREDITCOIN_HOME/start_crontab.log 2>&1)";
+     echo "$(($minutes_after_hour_1 + 15)) 3 $day_of_month * * \$CREDITCOIN_HOME/sha256_speed_test.sh >>\$CREDITCOIN_HOME/sha256_speed.log 2>/dev/null)";
      echo "$minutes_after_hour_1,$minutes_after_hour_2 * * * * \$CREDITCOIN_HOME/check_node_sanity.sh >>\$CREDITCOIN_HOME/check_node_sanity.log 2>>\$CREDITCOIN_HOME/check_node_sanity-error.log") | crontab -    # append to current schedule
 
     rc=$?
@@ -153,30 +157,34 @@ function define_fields_in_gateway_config {
   sed -i.bak '/"rpc"/d' $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
 
   read -p "Bitcoin RPC: " bitcoin_rpc
-  validate_rpc_url $bitcoin_rpc  &&  {
-    sed -i.bak "s~<bitcoin_rpc_node_url>~$bitcoin_rpc~w btc_change.txt" $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak    # delimiter is ~ since RPC URL contains /
-    [ -s btc_change.txt ]  ||  {
-      # original <bitcoin_..._url> not found; insert new value
-      sed -i.bak 's~"bitcoin"[[:blank:]]*:[[:blank:]]*{~&\'$'\n''        "rpc": "'$bitcoin_rpc'",~' $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
+  [ -n "$bitcoin_rpc" ]  &&  {
+    validate_rpc_url $bitcoin_rpc  &&  {
+      sed -i.bak "s~<bitcoin_rpc_node_url>~$bitcoin_rpc~w btc_change.txt" $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak    # delimiter is ~ since RPC URL contains /
+      [ -s btc_change.txt ]  ||  {
+        # original <bitcoin_..._url> not found; insert new value
+        sed -i.bak 's~"bitcoin"[[:blank:]]*:[[:blank:]]*{~&\'$'\n''        "rpc": "'$bitcoin_rpc'",~' $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
+      }
+      rm btc_change.txt 2>/dev/null
+    }  ||  {
+      mv "$GATEWAY_CONFIG"_orig $GATEWAY_CONFIG
+      return 1
     }
-    rm btc_change.txt 2>/dev/null
-  }  ||  {
-    mv "$GATEWAY_CONFIG"_orig $GATEWAY_CONFIG
-    return 1
   }
 
   read -p "Ethereum RPC: " ethereum_rpc
-  validate_rpc_url $ethereum_rpc  &&  {
-    sed -i.bak "s~<ethereum_node_url>~$ethereum_rpc~w eth_change.txt" $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
-    [ -s eth_change.txt ]  ||  {
-      sed -i.bak 's~"ethereum"[[:blank:]]*:[[:blank:]]*{~&\'$'\n''        "rpc": "'$ethereum_rpc'",~' $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
-      sed -i.bak 's~"ethless"[[:blank:]]*:[[:blank:]]*{~&\'$'\n''        "rpc": "'$ethereum_rpc'",~' $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
-      sed -i.bak 's~"erc20"[[:blank:]]*:[[:blank:]]*{~&\'$'\n''        "rpc": "'$ethereum_rpc'",~' $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
+  [ -n "$ethereum_rpc" ]  &&  {
+    validate_rpc_url $ethereum_rpc  &&  {
+      sed -i.bak "s~<ethereum_node_url>~$ethereum_rpc~w eth_change.txt" $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
+      [ -s eth_change.txt ]  ||  {
+        sed -i.bak 's~"ethereum"[[:blank:]]*:[[:blank:]]*{~&\'$'\n''        "rpc": "'$ethereum_rpc'",~' $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
+        sed -i.bak 's~"ethless"[[:blank:]]*:[[:blank:]]*{~&\'$'\n''        "rpc": "'$ethereum_rpc'",~' $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
+        sed -i.bak 's~"erc20"[[:blank:]]*:[[:blank:]]*{~&\'$'\n''        "rpc": "'$ethereum_rpc'",~' $GATEWAY_CONFIG  &&  rm ${GATEWAY_CONFIG}.bak
+      }
+      rm eth_change.txt 2>/dev/null
+    }  ||  {
+      mv "$GATEWAY_CONFIG"_orig $GATEWAY_CONFIG
+      return 1
     }
-    rm eth_change.txt 2>/dev/null
-  }  ||  {
-    mv "$GATEWAY_CONFIG"_orig $GATEWAY_CONFIG
-    return 1
   }
 
   rm "$GATEWAY_CONFIG"_orig 2>/dev/null
@@ -211,10 +219,14 @@ case $i in
 esac
 done
 
-define_creditcoin_home_in_bashrc   ||  exit 1
-schedule_job_to_run_sanity_script  ||  exit 1
-define_fields_in_gateway_config    ||  exit 1
+define_creditcoin_home_in_bashrc                                ||  exit 1
+schedule_job_to_run_sanity_script                               ||  exit 1
+[ -s $CREDITCOIN_HOME/sha256_speed.log ]  ||  {
+  echo "Running SHA-256 speed test..."
+  ./sha256_speed_test.sh | tee -a sha256_speed.log 2>/dev/null  ||  exit 1
+}
+define_fields_in_gateway_config                                 ||  exit 1
 
-[ -s $CREDITCOIN_HOME/sha256_speed.log ]  ||  echo "Reboot this machine before running script 'start_creditcoin.sh'."
+echo "Reboot this machine to start Creditcoin node."
 
 exit 0

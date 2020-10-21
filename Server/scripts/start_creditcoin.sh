@@ -120,15 +120,18 @@ function get_docker_compose_file_name {
 
   docker_compose_reference=`ls -t *.yaml | head -1`
   [ -z "$docker_compose_reference" ]  &&  return 1
-  while :
-  do
-    read -p "Enter name of Docker compose file ($docker_compose_reference) " user_entered
-    [ -z "$user_entered" ]  &&  break
-    [ -s $CREDITCOIN_HOME/$user_entered ]  &&  {
-      docker_compose_reference=$user_entered
-      break
-    }  ||  echo $user_entered not found.
-  done
+
+  tty -s  &&  {
+    while :
+    do
+      read -p "Enter name of Docker compose file ($docker_compose_reference) " user_entered
+      [ -z "$user_entered" ]  &&  break
+      [ -s $CREDITCOIN_HOME/$user_entered ]  &&  {
+        docker_compose_reference=$user_entered
+        break
+      }  ||  echo $user_entered not found.
+    done
+  }
 
   eval $1=\$docker_compose_reference    # return by reference
   return 0
@@ -271,7 +274,7 @@ function check_sha256_throughput {
 
   (( median_throughput < BASELINE ))  &&  {
     echo Warning: this machine lacks sufficient power to run Creditcoin software.
-    return 1
+#    return 1
   }
   return 0
 }
