@@ -111,24 +111,24 @@ probe_endpoints_of_validator_peers open_peers  ||  exit 1
 
 log_number_of_open_descriptors || exit 1
 
-if (($open_peers < 2))
-then
-  tty -s  &&  {
+tty -s  &&  {
+  if (($open_peers < 2))
+  then
     read -p "Number of open Validator peers is $open_peers.  Restart Creditcoin node? (y/n) " yn
     case $yn in
     [Yy]*) $CREDITCOIN_HOME/start_creditcoin.sh  ||  exit 1
            ;;
     *) ;;
     esac
-  } || {
-    # crontab job
-    if (($open_peers == 0))
-    then
-      $CREDITCOIN_HOME/start_creditcoin.sh  ||  exit 1
-    else
-      check_if_stagnant_state  ||  $CREDITCOIN_HOME/start_creditcoin.sh  ||  exit 1
-    fi
-  }
-fi
+  fi
+} || {
+  # crontab job
+  if (($open_peers == 0))
+  then
+    $CREDITCOIN_HOME/start_creditcoin.sh  ||  exit 1
+  else
+    check_if_stagnant_state  ||  $CREDITCOIN_HOME/start_creditcoin.sh  ||  exit 1
+  fi
+}
 
 exit 0
