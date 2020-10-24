@@ -173,7 +173,7 @@ function restart_creditcoin_node {
   local docker_compose
   get_docker_compose_file_name  docker_compose  ||  return 1
 
-  local public_ipv4_address=`curl https://ifconfig.me 2>/dev/null`
+  local public_ipv4_address=`curl https://checkip.amazonaws.com 2>/dev/null`
   [ -z $public_ipv4_address ]  &&  {
     echo Unable to query public IP address.
     return 1

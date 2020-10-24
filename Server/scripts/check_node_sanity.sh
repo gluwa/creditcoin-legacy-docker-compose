@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 [ -x "$(command -v nc)" ]  ||  {
   echo 'netcat' not found.
   exit 1
@@ -14,7 +13,7 @@ function timestamp {
 
 
 function get_block_tip {
-  curl http://$REST_API_ENDPOINT/blocks 2>/dev/null | grep -o '"block_num": "[^"]*' | head -1 | cut -d'"' -f4
+  curl http://$REST_API_ENDPOINT/blocks?limit=1 2>/dev/null | grep -o '"block_num": "[^"]*' | cut -d'"' -f4
   return $?
 }
 
@@ -36,10 +35,30 @@ function check_if_stagnant_state {
 }
 
 
+# log difficulty of last published block
+function log_latest_difficulty {
+  local rc=1
+  [ -x $CREDITCOIN_HOME/scripts/consensus.sh ]  &&  {
+    local difficulty=`$CREDITCOIN_HOME/scripts/consensus.sh --limit=1 2>/dev/null | head -1 | awk '{print $3}' | cut -d: -f2`
+
+    (( $difficulty )) 2>/dev/null    # check if non-zero number
+    [ $? = 0 ]  ||  [ $difficulty = 0 ]  &&  {
+      rc=0
+      timestamp
+      echo " Difficulty: $difficulty"
+    }
+  }
+  return $rc
+}
+
+
 # find open descriptors for all Validator processes
 function log_number_of_open_descriptors {
   local validator_pids=`ps -ef | grep "[u]sr/bin/sawtooth-validator" | awk '{print $2}'`
-  for v in $validator_pids; do
+  [ -n "$validator_pids" ]  ||  return 1
+
+  for v in $validator_pids
+  do
     open_this_vpid=`sudo vpid=$v sh -c 'lsof -p $vpid | wc -l'`
     open_descriptors=$((open_descriptors + open_this_vpid))
   done
@@ -54,7 +73,7 @@ function log_number_of_open_descriptors {
 function log_public_ip_address {
   # crontab job is scheduled to run twice an hour; use first one
   (( 10#$(date +%H) == 3 ))  &&  (( $(date +%M) < 30 ))  &&  {
-    local public_ipv4_address=`curl https://ifconfig.me 2>/dev/null`
+    local public_ipv4_address=`curl https://checkip.amazonaws.com 2>/dev/null`
     timestamp
     [ -n "$public_ipv4_address" ]  &&  {
       echo " Public IP address is $public_ipv4_address"
@@ -73,7 +92,8 @@ function probe_endpoints_of_validator_peers {
   local -n return_open_peers=$1
   local open=0
 
-  for p in $peers; do
+  for p in $peers
+  do
     local ipv4_address=`echo $p | cut -d: -f1`
     local port=`echo $p | cut -d: -f2`
     local preamble=" Peer $ipv4_address:$port is"
@@ -109,7 +129,7 @@ log_public_ip_address
 open_peers=0
 probe_endpoints_of_validator_peers open_peers  ||  exit 1
 
-log_number_of_open_descriptors || exit 1
+log_number_of_open_descriptors
 
 tty -s  &&  {
   if (($open_peers < 2))
@@ -130,5 +150,7 @@ tty -s  &&  {
     check_if_stagnant_state  ||  $CREDITCOIN_HOME/start_creditcoin.sh  ||  exit 1
   fi
 }
+
+#log_latest_difficulty    # placed last since REST-API query '/blocks' could hang in Validator
 
 exit 0
