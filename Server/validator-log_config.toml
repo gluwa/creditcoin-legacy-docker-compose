@@ -62,5 +62,5 @@ disable_existing_loggers = false
 # backupCount=5
 
 [root]
-# level = "DEBUG"
+level = "DEBUG"
 # handlers = [ "debug", "info", "warning", "error", "critical"]
