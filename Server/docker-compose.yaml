@@ -33,7 +33,7 @@ services:
             max-size: "10m"
 
   validator:
-    image: gluwa/creditcoin-validator:1.7.0
+    image: gluwa/creditcoin-validator:1.7
     container_name: sawtooth-validator-default
     volumes:
       - type: volume
@@ -76,7 +76,7 @@ services:
             max-size: "100m"
 
   rest-api:
-    image: gluwa/sawtooth-rest-api:1.7.0
+    image: gluwa/sawtooth-rest-api:1.7
     container_name: sawtooth-rest-api-default
     ports:
       - 8008:8008
@@ -94,7 +94,7 @@ services:
             max-size: "10m"
 
   processor:
-    image: gluwa/creditcoin-processor:1.7.0
+    image: gluwa/creditcoin-processor:1.7
     container_name: creditcoin-processor
     depends_on:
       - validator
@@ -108,7 +108,7 @@ services:
             max-size: "10m"
 
   gateway:
-    image: gluwa/creditcoin-gateway:1.7.0
+    image: gluwa/creditcoin-gateway:1.7
     container_name: creditcoin-gateway
     expose:
       - 55555
