@@ -20,7 +20,7 @@ version: "3.7"
 services:  
   client:
     network_mode: "host"
-    image: gluwa/creditcoin-client:1.7.0
+    image: gluwa/creditcoin-client:1.7
     container_name: creditcoin-client
     tty: true
     stdin_open: true
