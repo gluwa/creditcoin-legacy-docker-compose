@@ -1,0 +1,45 @@
+name: docker
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+
+jobs:
+  read-only:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Start containers
+      run: |
+        # download first
+        docker-compose -f Server/docker-compose.yaml pull
+        docker-compose -f Client/docker-compose.yaml pull
+
+        # start containers
+        # Note: keys are missing in .json config files and the containers
+        # will not function properly but that should be good enough to evaluate
+        # if the root filesystem is read-only
+        docker-compose -f Server/docker-compose.yaml up -d
+        docker-compose -f Client/docker-compose.yaml up -d
+        sleep 45
+
+    - name: Verify read-only filesystem
+      run: |
+        ERRORS=0
+
+        for CONTAINER_NAME in `docker ps --format "{{.Names}}"`; do
+            echo "INFO: ----- checking $CONTAINER_NAME -----"
+            DIFF=`docker diff $CONTAINER_NAME`
+            echo "$DIFF"
+
+            if [ -n "$DIFF" ]; then
+                echo "FAILED: unexpected changes to filesystem found for $CONTAINER_NAME"
+                ERRORS=$((ERRORS+1))
+            fi
+        done
+
+        exit $ERRORS
