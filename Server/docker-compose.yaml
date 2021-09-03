@@ -22,6 +22,9 @@ services:
   settings-tp:
     image: hyperledger/sawtooth-settings-tp:1.0
     container_name: sawtooth-settings-tp-default
+    read_only: true
+    tmpfs:
+      - /var/log/sawtooth
     depends_on:
       - validator
     entrypoint: settings-tp -C tcp://validator:4004
@@ -35,6 +38,9 @@ services:
   validator:
     image: gluwa/creditcoin-validator:1.7
     container_name: sawtooth-validator-default
+    read_only: true
+    tmpfs:
+      - /var/log/sawtooth
     volumes:
       - type: volume
         source: validator-block-volume
@@ -78,6 +84,9 @@ services:
   rest-api:
     image: gluwa/sawtooth-rest-api:1.7
     container_name: sawtooth-rest-api-default
+    read_only: true
+    tmpfs:
+      - /var/log/sawtooth
     ports:
       - 8008:8008
     secrets:
@@ -96,6 +105,7 @@ services:
   processor:
     image: gluwa/creditcoin-processor:1.7
     container_name: creditcoin-processor
+    read_only: true
     depends_on:
       - validator
       - settings-tp
@@ -110,6 +120,7 @@ services:
   gateway:
     image: gluwa/creditcoin-gateway:1.7
     container_name: creditcoin-gateway
+    read_only: true
     expose:
       - 55555
     ports:
