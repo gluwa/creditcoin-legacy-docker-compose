@@ -27,6 +27,31 @@ jobs:
         docker-compose -f Client/docker-compose.yaml up -d
         sleep 45
 
+        echo "**** CONTAINERS *****"
+        docker ps -a
+
+    - name: Search for dead containers
+      run: |
+        docker ps -a --filter "status=dead" --format "{{.Names}}, {{.ID}}, {{.Status}}"
+        HOW_MANY=$(docker ps -a --filter "status=dead" --format "{{.Names}}, {{.ID}}, {{.Status}}" | wc -l)
+        if [ "$HOW_MANY" -gt "0" ]; then
+            exit 1
+        fi
+
+    - name: Search for exited containers
+      run: |
+        docker ps -a --filter "status=exited" --format "{{.Names}}, {{.ID}}, {{.Status}}"
+        HOW_MANY=$(docker ps -a --filter "status=exited" --format "{{.Names}}, {{.ID}}, {{.Status}}" | wc -l)
+        if [ "$HOW_MANY" -gt "0" ]; then
+            exit 1
+        fi
+
+    - name: Sanity check if containers are working
+      run: |
+        # should print a list of all commands
+        docker exec -it creditcoin-client ./ccclient
+
+
     - name: Verify read-only filesystem
       run: |
         ERRORS=0
