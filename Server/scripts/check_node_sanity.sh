@@ -23,7 +23,7 @@ function check_if_stagnant_state {
   [ -z $block_tip ]  &&  return 1
 
   local previous_block_tip=`cat $CREDITCOIN_HOME/.last_block_tip 2>/dev/null`  &&  {
-    [ $block_tip = $previous_block_tip ]  &&  {
+    [ $block_tip = "$previous_block_tip" ]  &&  {
       rm $CREDITCOIN_HOME/.last_block_tip 2>/dev/null
       return 1    # Validator is stagnant since block tip hasn't changed since last run
     }
