@@ -68,6 +68,10 @@ services:
                 --seeds tcp://node-003.creditcoin.org:8800 \
                 --maximum-peer-connectivity 5 \
                 --scheduler parallel'
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
     stop_signal: SIGKILL
     logging:
         driver: "json-file"
