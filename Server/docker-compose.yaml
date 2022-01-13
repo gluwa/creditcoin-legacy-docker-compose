@@ -67,7 +67,8 @@ services:
                 --seeds tcp://node-002.creditcoin.org:8800 \
                 --seeds tcp://node-003.creditcoin.org:8800 \
                 --maximum-peer-connectivity 5 \
-                --scheduler parallel'
+                --scheduler serial \
+                --state-pruning-block-depth 2000000'
     deploy:
       restart_policy:
         condition: on-failure
