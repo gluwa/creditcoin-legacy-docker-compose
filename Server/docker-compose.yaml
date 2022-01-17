@@ -68,6 +68,7 @@ services:
                 --seeds tcp://node-003.creditcoin.org:8800 \
                 --maximum-peer-connectivity 5 \
                 --scheduler parallel'
+    restart: on-failure
     deploy:
       restart_policy:
         condition: on-failure
