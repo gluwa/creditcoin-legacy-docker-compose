@@ -64,8 +64,6 @@ services:
                 --peering dynamic \
                 --seeds tcp://node-000.creditcoin.org:8800 \
                 --seeds tcp://node-001.creditcoin.org:8800 \
-                --seeds tcp://node-002.creditcoin.org:8800 \
-                --seeds tcp://node-003.creditcoin.org:8800 \
                 --maximum-peer-connectivity 5 \
                 --scheduler parallel'
     restart: on-failure
