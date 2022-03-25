@@ -62,8 +62,8 @@ services:
                 --bind component:tcp://eth0:4004 \
                 --bind network:tcp://eth0:8800 \
                 --peering dynamic \
-                --seeds tcp://node-000.creditcoin.org:8800 \
-                --seeds tcp://node-001.creditcoin.org:8800 \
+                --seeds tcp://creditcoin-node.gluwa.com:8800 \
+                --seeds tcp://creditcoin-gateway.gluwa.com:8800 \
                 --maximum-peer-connectivity 5 \
                 --scheduler parallel'
     stop_signal: SIGKILL
