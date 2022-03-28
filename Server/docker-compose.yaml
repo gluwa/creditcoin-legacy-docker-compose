@@ -87,7 +87,6 @@ services:
                 --seeds tcp://creditcoin-gateway.gluwa.com:8800 \
                 --scheduler serial \
                 --state-pruning-block-depth 2000000'
-
     stop_signal: SIGKILL
     logging:
         driver: "json-file"
